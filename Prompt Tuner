@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Tuner</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      max-width: 600px;
+      margin: auto;
+    }
+    textarea {
+      width: 100%;
+      height: 100px;
+      margin-bottom: 1rem;
+    }
+    .buttons {
+      margin-bottom: 1rem;
+    }
+    button {
+      margin-right: 0.5rem;
+    }
+    .output {
+      border: 1px solid #ccc;
+      padding: 1rem;
+      white-space: pre-wrap;
+      background: #f9f9f9;
+    }
+    .actions {
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Prompt Tuner</h1>
+
+  <label for="original">📌 Prompt originale:</label>
+  <textarea id="original" placeholder="Inserisci qui il tuo prompt..."></textarea>
+
+  <div class="buttons">
+    <label>Scegli lo stile:</label><br />
+    <button onclick="tunePrompt('conciso')">Conciso</button>
+    <button onclick="tunePrompt('creativo')">Creativo</button>
+    <button onclick="tunePrompt('formale')">Formale</button>
+  </div>
+
+  <div class="output" id="output">🎯 Risultato qui...</div>
+
+  <div class="actions">
+    <button onclick="copyOutput()">📋 Copia</button>
+    <button onclick="repeatPrompt()">🔁 Riprova</button>
+  </div>
+
+  <script>
+    async function tunePrompt(stile) {
+      const input = document.getElementById("original").value;
+      const output = document.getElementById("output");
+
+      if (!input.trim()) {
+        output.textContent = "Per favore inserisci un prompt.";
+        return;
+      }
+
+      const instructions = {
+        conciso: "Riscrivi il seguente prompt in modo conciso e diretto:",
+        creativo: "Riscrivi il seguente prompt in modo creativo e ispirazionale:",
+        formale: "Riscrivi il seguente prompt in modo formale e professionale:",
+      };
+
+      const fullPrompt = `${instructions[stile]}\n\"${input}\"`;
+
+      try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer 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"
+          },
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: [
+              { role: "system", content: "Sei un assistente che riscrive prompt." },
+              { role: "user", content: fullPrompt }
+            ],
+            temperature: 0.7
+          })
+        });
+
+        const data = await response.json();
+        output.textContent = data.choices[0].message.content;
+      } catch (error) {
+        output.textContent = "Errore nella generazione del prompt.";
+        console.error(error);
+      }
+    }
+
+    function copyOutput() {
+      const output = document.getElementById("output").textContent;
+      navigator.clipboard.writeText(output);
+      alert("Testo copiato negli appunti!");
+    }
+
+    function repeatPrompt() {
+      const lastPrompt = document.getElementById("original").value;
+      if (lastPrompt) {
+        tunePrompt('conciso');
+      }
+    }
+  </script>
+</body>
+</html>
