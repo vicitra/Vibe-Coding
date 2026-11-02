@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tone Finder</title>
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --panel: #ffffff;
+    --ink: #1d1b18;
+    --muted: #6b655c;
+    --line: #ddd6c8;
+    --accent: #b8452a;
+    --accent-ink: #ffffff;
+    --chip: #efe9dc;
+    --amp: #1f1f1f;
+    --amp-ink: #f2efe8;
+    --knob: #e9e6df;
+    --dim: 0.35;
+    --ok: #2f7a4a;
+    --warn: #9a6a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412;
+      --panel: #1f1d1a;
+      --ink: #eeeae2;
+      --muted: #a39d92;
+      --line: #36322c;
+      --accent: #e0694b;
+      --accent-ink: #1a1a1a;
+      --chip: #2a2723;
+      --amp: #0d0d0d;
+      --amp-ink: #f2efe8;
+      --knob: #d9d5cc;
+      --ok: #6cc28d;
+      --warn: #e2b44a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --panel: #1f1d1a; --ink: #eeeae2; --muted: #a39d92; --line: #36322c;
+    --accent: #e0694b; --accent-ink: #1a1a1a; --chip: #2a2723; --amp: #0d0d0d; --amp-ink: #f2efe8;
+    --knob: #d9d5cc; --ok: #6cc28d; --warn: #e2b44a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 1.15rem; margin: 0 0 12px; }
+  h3 { font-size: 1rem; margin: 0 0 8px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 6px; }
+  input[type=text], input[type=password], select {
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font-size: 1rem;
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+  .row > * { flex: 1 1 200px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--ink); padding: 10px 16px; font-size: 0.95rem; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .btn { border: 0; border-radius: 10px; padding: 11px 18px; font-size: 1rem; font-weight: 600; cursor: pointer; background: var(--accent); color: var(--accent-ink); }
+  .btn.secondary { background: var(--chip); color: var(--ink); }
+  .btn:disabled { opacity: 0.6; cursor: wait; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .hint { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .status { margin-top: 12px; font-size: 0.9rem; color: var(--muted); min-height: 1.2em; }
+  .status.err { color: var(--accent); }
+  .badge { display: inline-block; font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); margin-right: 6px; }
+  .badge.ai { background: var(--ok); color: var(--panel); }
+
+  /* Result */
+  .result-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: start; }
+  .result-head h2 { font-size: 1.35rem; margin: 4px 0; }
+  .meta { color: var(--muted); font-size: 0.9rem; }
+  .chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 12px 0 4px; font-size: 0.9rem; }
+  .chain span.node { background: var(--chip); border-radius: 8px; padding: 4px 10px; }
+  .chain span.arrow { color: var(--muted); }
+
+  .amp {
+    background: var(--amp); color: var(--amp-ink); border-radius: 12px; padding: 14px 12px 10px;
+    overflow-x: auto;
+  }
+  .amp-title { font-family: Georgia, serif; font-style: italic; font-size: 1.1rem; margin: 0 0 8px 4px; }
+  .knobs { display: flex; gap: 6px; flex-wrap: nowrap; min-width: min-content; }
+  .knobs.wrap { flex-wrap: wrap; }
+  .knob { width: 78px; text-align: center; flex: 0 0 auto; }
+  .knob.off { opacity: var(--dim); }
+  .knob svg { width: 58px; height: 58px; display: block; margin: 0 auto; }
+  .knob .k-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .knob .k-val { font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+  .knob .k-sub { font-size: 0.68rem; opacity: 0.8; line-height: 1.2; }
+  .sep { width: 1px; background: #555; margin: 4px 4px; flex: 0 0 auto; }
+  .chsel { font-size: 0.8rem; margin: 8px 4px 0; }
+  .chsel b { color: #ffcf6e; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } .knob { width: 70px; } .knobs { flex-wrap: wrap; justify-content: center; } .sep { display: none; } }
+  .sub { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .switch5 { display: flex; gap: 6px; margin: 8px 0; }
+  .switch5 div { flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px 0; font-size: 0.8rem; color: var(--muted); }
+  .switch5 div.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+  table.params { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  table.params td { padding: 5px 0; border-bottom: 1px dashed var(--line); vertical-align: top; }
+  table.params td:first-child { color: var(--muted); width: 45%; padding-right: 8px; }
+  ul.tips { margin: 0; padding-left: 20px; }
+  ul.tips li { margin-bottom: 6px; }
+  .why { background: var(--chip); border-radius: 10px; padding: 12px; font-size: 0.93rem; }
+  .history { display: flex; flex-wrap: wrap; gap: 6px; }
+  .history button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 5px 12px; font-size: 0.85rem; cursor: pointer; }
+  .gear li { margin-bottom: 4px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎸 Tone Finder</h1>
+  <p class="lead">Scrivi (o incolla il link de) la canzone, scegli elettrica o acustica: ti dico come regolare <b>la tua</b> chitarra, la Cube Baby AC e il Super Champ XD per avvicinarti al suono originale.</p>
+
+  <section class="card">
+    <div class="row">
+      <div style="flex: 3 1 320px">
+        <label for="q">Canzone</label>
+        <input id="q" type="text" placeholder="es. Metallica – Nothing Else Matters  oppure  https://youtu.be/…" autocomplete="off" />
+      </div>
+      <div style="flex: 0 0 auto">
+        <label>Chitarra</label>
+        <div class="seg" role="group" aria-label="Tipo di chitarra">
+          <button type="button" id="m-electric" aria-pressed="true">⚡ Elettrica</button>
+          <button type="button" id="m-acoustic" aria-pressed="false">🪵 Acustica</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top: 12px">
+      <div>
+        <label for="engine">Motore</label>
+        <select id="engine">
+          <option value="ai">AI – Claude cerca il brano sul web (più fedele)</option>
+          <option value="offline">Offline – database interno di stili</option>
+        </select>
+      </div>
+      <div>
+        <label for="style">Stile (solo offline)</label>
+        <select id="style"><option value="">Rilevamento automatico</option></select>
+      </div>
+    </div>
+
+    <details id="keybox" style="margin-top: 14px">
+      <summary>Chiave API Anthropic (per la modalità AI)</summary>
+      <div style="margin-top: 10px">
+        <input id="apikey" type="password" placeholder="sk-ant-…" autocomplete="off" />
+        <p class="hint">La chiave resta solo in questo browser (localStorage) e viene inviata soltanto ad api.anthropic.com. Non metterla mai nel codice o su GitHub. Senza chiave l'app usa il motore offline.</p>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button class="btn" id="go">Trova il suono</button>
+      <button class="btn secondary" id="copy" disabled>📋 Copia configurazione</button>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+    <div id="histwrap" class="hidden" style="margin-top: 12px">
+      <div class="hint" style="margin-bottom: 6px">Recenti</div>
+      <div class="history" id="history"></div>
+    </div>
+  </section>
+
+  <section id="result" class="hidden"></section>
+
+  <section class="card">
+    <details>
+      <summary>La tua attrezzatura (come l'ho riconosciuta)</summary>
+      <ul class="gear" style="margin-top: 10px">
+        <li><b>Hamer Slammer Series (Californian)</b> – superstrat coreana anni '90, pickup H-S-S (humbucker al ponte + 2 single coil), ponte Floyd Rose con bloccacorde, 1 volume, 1 tono, selettore a 5 posizioni.</li>
+        <li><b>Takamine G Series</b> – elettroacustica cutaway sunburst con preamp a bordo (volume + EQ bassi/medi/alti e accordatore sulla fascia; i controlli esatti dipendono dal modello).</li>
+        <li><b>M-VAVE Cube Baby AC</b> – mini multieffetto per acustica: 9 preamp, IR di corpo, EQ a 3 bande, compressore, modulazioni (chorus/phaser/tremolo), delay, riverbero, anti-feedback. Si regola dall'app/editor.</li>
+        <li><b>Fender Super Champ XD</b> – 15 W a valvole, cono da 10". Canale 1 pulito (Volume 1). Canale 2 con Gain, Volume 2 e 16 VOICE. Treble, Bass e 16 effetti in comune.</li>
+      </ul>
+      <p class="hint">Sul Super Champ XD il knob VOICE agisce solo sul canale 2 (pulsante CH SELECT). I nomi dei parametri della Cube Baby possono cambiare leggermente con il firmware/app.</p>
+    </details>
+  </section>
+</main>
+
+<script type="module">
+// ---------------------------------------------------------------------------
+// Gear reference
+// ---------------------------------------------------------------------------
+const VOICES = {
+  1: "Tweed – Champ pulito", 2: "Tweed – Bassman pieno", 3: "Tweed – molto saturo",
+  4: "Blackface – pulito brillante", 5: "Blackface – leggero overdrive", 6: "Blackface – molto saturo",
+  7: "British – pulito 'jangly'", 8: "British – crunch vintage stack", 9: "British – high gain",
+  10: "Hot Rod – crunch", 11: "Hot Rod – drive", 12: "Hot Rod – high gain",
+  13: "Metal – high gain", 14: "Metal – high gain 'scavato'",
+  15: "Jazz (Jazz King)", 16: "Acoustic (Acoustasonic)"
+};
+const FX = [
+  "Nessuno", "Vibratone lento", "Vibratone veloce",
+  "Delay 130 ms (slapback)", "Delay 300 ms", "Delay 450 ms",
+  "Reverb Large Room", "Reverb Concert Hall", "Reverb Spring (classico Fender)", "Reverb + Delay",
+  "Chorus Fast Sweep", "Chorus Deep Sweep", "Chorus + Delay", "Chorus + Reverb",
+  "Tremolo lento", "Tremolo medio", "Tremolo veloce"
+];
+const PICKUPS = {
+  1: "Humbucker al ponte",
+  2: "Humbucker + centrale",
+  3: "Single coil centrale",
+  4: "Centrale + manico",
+  5: "Single coil al manico"
+};
+
+// ---------------------------------------------------------------------------
+// Offline knowledge base: styles
+// Takamine EQ: offset from centre (-5..+5, 0 = flat). Cube Baby: 0-100 %.
+// Amp knobs: 0-10, voice 1-16.
+// ---------------------------------------------------------------------------
+const AC = {
+  strum:  { tak: { vol: 7, bass: -1, mid: 0, treble: 1 }, pedal: { preamp: "Clean", gain: 35, bass: 45, mid: 50, treble: 60, comp: 50, mod: "Off", delay: "Off", reverb: "Room – 25%" } },
+  finger: { tak: { vol: 7, bass: 0, mid: 1, treble: 0 },  pedal: { preamp: "Clean", gain: 30, bass: 50, mid: 55, treble: 50, comp: 30, mod: "Off", delay: "Off", reverb: "Hall – 35%" } },
+  unplug: { tak: { vol: 7, bass: -1, mid: 2, treble: 0 }, pedal: { preamp: "Clean", gain: 40, bass: 45, mid: 60, treble: 50, comp: 45, mod: "Chorus – 20%", delay: "Off", reverb: "Room – 20%" } },
+  bright: { tak: { vol: 7, bass: -1, mid: 0, treble: 2 }, pedal: { preamp: "Clean", gain: 30, bass: 40, mid: 50, treble: 65, comp: 60, mod: "Off", delay: "Off", reverb: "Room – 15%" } },
+  warm:   { tak: { vol: 7, bass: 1, mid: 1, treble: -1 }, pedal: { preamp: "Clean", gain: 45, bass: 55, mid: 60, treble: 40, comp: 30, mod: "Off", delay: "Off", reverb: "Room – 20%" } },
+  space:  { tak: { vol: 7, bass: 0, mid: 0, treble: 1 },  pedal: { preamp: "Clean", gain: 30, bass: 50, mid: 45, treble: 55, comp: 40, mod: "Chorus – 15%", delay: "~400 ms – 25%", reverb: "Hall – 45%" } },
+  vintage:{ tak: { vol: 7, bass: 0, mid: 1, treble: 1 },  pedal: { preamp: "Clean", gain: 30, bass: 50, mid: 55, treble: 55, comp: 40, mod: "Off", delay: "Off", reverb: "Room – 30%" } },
+};
+
+const STYLES = {
+  clean60: { label: "Pop/Rock anni '60 – pulito vintage",
+    el: { pickup: 4, gVol: 10, gTone: 8, ch: 1, v1: 4, gain: 0, v2: 0, voice: 4, treble: 6, bass: 5, fx: "Reverb Spring (classico Fender)", fxl: 3 },
+    ac: "vintage", tips: ["Pennata leggera, accordi aperti: il pulito del canale 1 fa quasi tutto.", "Per i solo passa al canale 2, Voice 2, Gain 3."] },
+  surf: { label: "Surf / twang",
+    el: { pickup: 3, gVol: 10, gTone: 10, ch: 1, v1: 5, gain: 0, v2: 0, voice: 4, treble: 7, bass: 4, fx: "Reverb Spring (classico Fender)", fxl: 7 },
+    ac: "bright", tips: ["Tanta molla di riverbero e plettrata vicino al ponte.", "Il Floyd Rose ti dà il vibrato tipico: usalo con delicatezza."] },
+  funk: { label: "Funk",
+    el: { pickup: 4, gVol: 10, gTone: 9, ch: 1, v1: 5, gain: 0, v2: 0, voice: 4, treble: 7, bass: 4, fx: "Nessuno", fxl: 0 },
+    ac: "bright", tips: ["Pennate a sedicesimi con la mano destra sempre in movimento e note stoppate con la sinistra.", "Prova anche la posizione 2 per un suono più 'quack'."] },
+  blues: { label: "Blues",
+    el: { pickup: 5, gVol: 9, gTone: 7, ch: 2, v1: 0, gain: 5, v2: 4, voice: 5, treble: 6, bass: 5, fx: "Reverb Spring (classico Fender)", fxl: 3 },
+    ac: "warm", tips: ["Abbassa il volume della chitarra a 6-7 per ripulire il suono senza toccare l'ampli.", "Per un blues texano più grosso: Voice 2, Gain 6."] },
+  classicrock: { label: "Classic rock (anni '70)",
+    el: { pickup: 1, gVol: 10, gTone: 8, ch: 2, v1: 0, gain: 5, v2: 4, voice: 8, treble: 6, bass: 6, fx: "Reverb Large Room", fxl: 2 },
+    ac: "strum", tips: ["Il crunch deve 'rompersi' quando suoni forte e pulirsi quando suoni piano: non esagerare col gain.", "Riff con power chord e accordi aperti, plettrata decisa."] },
+  hardrock: { label: "Hard rock / glam anni '80",
+    el: { pickup: 1, gVol: 10, gTone: 9, ch: 2, v1: 0, gain: 7, v2: 4, voice: 9, treble: 7, bass: 6, fx: "Delay 300 ms", fxl: 2 },
+    ac: "unplug", tips: ["Il Floyd Rose della Hamer è perfetto per dive bomb e vibrato.", "Per i solo alza il Gain a 8 e il Delay a 3."] },
+  metal: { label: "Metal",
+    el: { pickup: 1, gVol: 10, gTone: 10, ch: 2, v1: 0, gain: 7, v2: 4, voice: 13, treble: 7, bass: 7, fx: "Nessuno", fxl: 0 },
+    ac: "unplug", tips: ["Palm muting stretto sulle corde basse.", "Per il thrash anni '80 'scavato' prova Voice 14.", "Se c'è troppo fruscio, scendi col Gain: definizione > saturazione."] },
+  grunge: { label: "Grunge / alternative anni '90",
+    el: { pickup: 1, gVol: 10, gTone: 8, ch: 2, v1: 0, gain: 8, v2: 4, voice: 3, treble: 5, bass: 7, fx: "Nessuno", fxl: 0 },
+    ac: "unplug", tips: ["Strofe pulite sul canale 1 (premi CH SELECT), ritornelli saturi sul canale 2.", "Molte band grunge accordano più basso: controlla l'accordatura del brano."] },
+  punk: { label: "Punk / pop-punk",
+    el: { pickup: 1, gVol: 10, gTone: 9, ch: 2, v1: 0, gain: 6, v2: 4, voice: 12, treble: 7, bass: 6, fx: "Nessuno", fxl: 0 },
+    ac: "strum", tips: ["Plettrate tutte in giù sui power chord.", "Per il punk anni '70 più 'vintage' usa Voice 8."] },
+  indie: { label: "Indie / Brit rock",
+    el: { pickup: 2, gVol: 10, gTone: 8, ch: 2, v1: 0, gain: 4, v2: 4, voice: 8, treble: 7, bass: 5, fx: "Reverb Large Room", fxl: 2 },
+    ac: "strum", tips: ["Crunch leggero: gli accordi devono restare leggibili.", "Per le parti più pulite e 'jangly' passa a Voice 7."] },
+  ambient: { label: "Rock atmosferico / delay (U2, Coldplay…)",
+    el: { pickup: 2, gVol: 10, gTone: 8, ch: 2, v1: 0, gain: 3, v2: 4, voice: 7, treble: 7, bass: 4, fx: "Reverb + Delay", fxl: 5 },
+    ac: "space", tips: ["Suona note singole ritmiche e lascia che il delay riempia gli spazi.", "Sul Super Champ il tempo del delay è fisso: scegli 300 o 450 ms in base al BPM."] },
+  lead: { label: "Rock melodico / assoli espressivi (Pink Floyd…)",
+    el: { pickup: 2, gVol: 10, gTone: 8, ch: 2, v1: 0, gain: 6, v2: 4, voice: 11, treble: 6, bass: 5, fx: "Delay 450 ms", fxl: 4 },
+    ac: "finger", tips: ["Bending lenti e vibrato ampio: il sustain viene dal Gain, il 'respiro' dal delay.", "Per le parti ritmiche pulite: canale 1, posizione 4."] },
+  jazz: { label: "Jazz",
+    el: { pickup: 5, gVol: 9, gTone: 4, ch: 2, v1: 0, gain: 2, v2: 5, voice: 15, treble: 4, bass: 6, fx: "Reverb Large Room", fxl: 2 },
+    ac: "warm", tips: ["Tono della chitarra chiuso (3-5) e plettrata leggera, vicino al manico.", "Corde lisce/flatwound aiutano molto, ma non sono obbligatorie."] },
+  reggae: { label: "Reggae / ska",
+    el: { pickup: 3, gVol: 10, gTone: 9, ch: 1, v1: 4, gain: 0, v2: 0, voice: 4, treble: 7, bass: 3, fx: "Reverb Spring (classico Fender)", fxl: 2 },
+    ac: "bright", tips: ["'Skank' in levare: accordi corti e stoppati sui tempi deboli.", "Bassi tirati giù, il groove lo fanno basso e batteria."] },
+  pop: { label: "Pop moderno",
+    el: { pickup: 4, gVol: 10, gTone: 8, ch: 1, v1: 4, gain: 0, v2: 0, voice: 4, treble: 6, bass: 5, fx: "Chorus + Reverb", fxl: 3 },
+    ac: "strum", tips: ["Pulito con un filo di chorus: suona arpeggi o accordi stoppati.", "Per i ritornelli più spinti: canale 2, Voice 10, Gain 3."] },
+  cantautore: { label: "Cantautorato / pop-rock italiano",
+    el: { pickup: 4, gVol: 10, gTone: 8, ch: 2, v1: 0, gain: 3, v2: 4, voice: 5, treble: 6, bass: 5, fx: "Reverb Spring (classico Fender)", fxl: 3 },
+    ac: "finger", tips: ["Questi brani nascono spesso sull'acustica: valuta la Takamine.", "Per le parti più rock alza il Gain a 5 e passa al pickup al ponte."] },
+  country: { label: "Country / rockabilly",
+    el: { pickup: 3, gVol: 10, gTone: 10, ch: 1, v1: 5, gain: 0, v2: 0, voice: 4, treble: 8, bass: 4, fx: "Delay 130 ms (slapback)", fxl: 4 },
+    ac: "bright", tips: ["Ibrido plettro + dita (chicken picking) e slapback corto.", "Posizione 2 per un twang più cattivo."] },
+};
+
+// Artist -> style (normalized names)
+const ARTISTS = {
+  "beatles": "clean60", "rolling stones": "classicrock", "beach boys": "surf", "dick dale": "surf", "shadows": "surf", "ventures": "surf",
+  "the kinks": "classicrock", "kinks": "classicrock", "the who": "classicrock", "simon & garfunkel": "cantautore", "simon and garfunkel": "cantautore",
+  "bob dylan": "cantautore", "neil young": "grunge", "eagles": "classicrock", "creedence": "classicrock", "ccr": "classicrock",
+  "led zeppelin": "classicrock", "deep purple": "classicrock", "ac/dc": "classicrock", "acdc": "classicrock", "black sabbath": "metal",
+  "queen": "classicrock", "lynyrd skynyrd": "classicrock", "tom petty": "classicrock", "bruce springsteen": "classicrock", "eric clapton": "blues",
+  "jimi hendrix": "blues", "stevie ray vaughan": "blues", "srv": "blues", "bb king": "blues", "b.b. king": "blues", "gary moore": "blues",
+  "john mayer": "blues", "joe bonamassa": "blues", "black keys": "blues", "white stripes": "grunge", "jack white": "grunge",
+  "pink floyd": "lead", "david gilmour": "lead", "dire straits": "lead", "mark knopfler": "lead", "santana": "lead", "carlos santana": "lead",
+  "van halen": "hardrock", "guns n roses": "hardrock", "guns n' roses": "hardrock", "bon jovi": "hardrock", "def leppard": "hardrock",
+  "scorpions": "hardrock", "aerosmith": "hardrock", "kiss": "hardrock", "motley crue": "hardrock", "whitesnake": "hardrock",
+  "poison": "hardrock", "skid row": "hardrock", "joe satriani": "hardrock", "steve vai": "hardrock", "maneskin": "hardrock", "måneskin": "hardrock",
+  "metallica": "metal", "iron maiden": "metal", "megadeth": "metal", "slayer": "metal", "pantera": "metal", "judas priest": "metal",
+  "system of a down": "metal", "slipknot": "metal", "avenged sevenfold": "metal", "rammstein": "metal", "sepultura": "metal", "korn": "metal",
+  "linkin park": "metal", "disturbed": "metal", "trivium": "metal", "gojira": "metal", "dream theater": "metal", "ozzy": "metal", "motorhead": "metal",
+  "nirvana": "grunge", "pearl jam": "grunge", "soundgarden": "grunge", "alice in chains": "grunge", "stone temple pilots": "grunge",
+  "foo fighters": "grunge", "smashing pumpkins": "grunge", "queens of the stone age": "grunge", "audioslave": "grunge", "rage against the machine": "grunge",
+  "green day": "punk", "blink-182": "punk", "blink 182": "punk", "the offspring": "punk", "offspring": "punk", "sum 41": "punk", "ramones": "punk",
+  "sex pistols": "punk", "the clash": "punk", "my chemical romance": "punk", "paramore": "punk", "fall out boy": "punk", "simple plan": "punk",
+  "oasis": "indie", "blur": "indie", "arctic monkeys": "indie", "the strokes": "indie", "strokes": "indie", "radiohead": "indie", "the killers": "indie",
+  "kings of leon": "indie", "franz ferdinand": "indie", "the smiths": "indie", "r.e.m.": "indie", "muse": "indie", "placebo": "indie",
+  "the cure": "ambient", "u2": "ambient", "coldplay": "ambient", "the police": "ambient", "snow patrol": "ambient", "imagine dragons": "pop",
+  "red hot chili peppers": "funk", "rhcp": "funk", "nile rodgers": "funk", "chic": "funk", "jamiroquai": "funk", "prince": "funk", "earth wind & fire": "funk",
+  "vulfpeck": "funk", "bob marley": "reggae", "ub40": "reggae", "sublime": "reggae", "toots": "reggae",
+  "wes montgomery": "jazz", "george benson": "jazz", "pat metheny": "jazz", "joe pass": "jazz", "django": "jazz", "norah jones": "jazz",
+  "ed sheeran": "pop", "adele": "pop", "billie eilish": "pop", "lewis capaldi": "pop", "james blunt": "pop", "jason mraz": "pop", "taylor swift": "pop", "shawn mendes": "pop", "harry styles": "pop", "dua lipa": "pop", "bruno mars": "funk", "the weeknd": "pop",
+  "johnny cash": "country", "elvis": "country", "elvis presley": "country", "chuck berry": "country", "brad paisley": "country", "dolly parton": "country",
+  "vasco rossi": "classicrock", "vasco": "classicrock", "ligabue": "classicrock", "litfiba": "hardrock", "negramaro": "ambient", "modà": "pop", "moda": "pop",
+  "lucio battisti": "cantautore", "battisti": "cantautore", "fabrizio de andre": "cantautore", "de andre": "cantautore", "francesco de gregori": "cantautore",
+  "de gregori": "cantautore", "lucio dalla": "cantautore", "francesco guccini": "cantautore", "guccini": "cantautore", "rino gaetano": "cantautore",
+  "edoardo bennato": "classicrock", "pino daniele": "blues", "zucchero": "blues", "jovanotti": "pop", "cesare cremonini": "pop", "tiziano ferro": "pop",
+  "subsonica": "indie", "afterhours": "grunge", "verdena": "grunge", "marlene kuntz": "grunge", "baustelle": "indie", "the kolors": "pop",
+  "pinguini tattici nucleari": "pop", "thegiornalisti": "pop", "calcutta": "cantautore", "brunori sas": "cantautore", "nek": "pop", "eros ramazzotti": "pop",
+  "laura pausini": "pop", "elisa": "pop", "gianna nannini": "classicrock", "pooh": "pop", "nomadi": "cantautore",
+};
+
+// Song-specific notes (only well-known, safe facts; style can be overridden)
+const SONGS = [
+  { m: ["wonderwall"], style: "indie", ac: "strum", capo: "Capotasto al 2° tasto", tips: ["Accordi Em7 – G – Dsus4 – A7sus4 tenendo fermi anulare e mignolo sul 3° tasto delle due corde acute."] },
+  { m: ["nothing else matters"], style: "metal", el: { pickup: 5, ch: 1, v1: 4, gTone: 8, fx: "Reverb Large Room", fxl: 3 }, tips: ["L'arpeggio iniziale è in Mi minore con corde a vuoto: canale 1 pulito, pickup al manico.", "Per l'assolo e il finale passa al canale 2 (Voice 13) e al pickup al ponte."] },
+  { m: ["come as you are"], style: "grunge", el: { ch: 1, v1: 5, pickup: 4, fx: "Chorus Deep Sweep", fxl: 6 }, tips: ["Il riff è famoso per il chorus (Cobain usava un Electro-Harmonix Small Clone): F/X Chorus Deep Sweep.", "Il brano è accordato più basso dello standard: verifica con un accordatore sul disco."] },
+  { m: ["smells like teen spirit"], style: "grunge", tips: ["Strofa: due note pulite (canale 1). Ritornello e riff: canale 2 saturo.", "Usa il pulsante CH SELECT per passare da strofa a ritornello."] },
+  { m: ["back in black", "highway to hell", "thunderstruck", "t.n.t", "tnt"], style: "classicrock", el: { gain: 5, voice: 8 }, tips: ["Il segreto AC/DC: meno gain di quanto pensi e plettrata molto decisa.", "Accordi aperti che risuonano, niente effetti."] },
+  { m: ["smoke on the water"], style: "classicrock", tips: ["Il riff è in quarte: suonalo con due dita sulle corde Re e Sol (o La e Re)."] },
+  { m: ["sweet child"], style: "hardrock", el: { pickup: 5, gain: 6 }, tips: ["Intro con il pickup al manico per un suono più rotondo; plettrata alternata pulita.", "Per i riff ritmici torna al ponte."] },
+  { m: ["enter sandman", "master of puppets"], style: "metal", el: { voice: 14 }, tips: ["Thrash anni '80: Voice 14 'scavato', palm muting deciso, tutte pennate in giù dove possibile."] },
+  { m: ["seven nation army"], style: "grunge", tips: ["Nell'originale Jack White usa un pitch shifter un'ottava sotto (DigiTech Whammy): senza, suona il riff sulle corde basse.", "Gain alto e pickup al ponte."] },
+  { m: ["creep"], style: "indie", tips: ["Strofe pulite arpeggiate, poi i due 'colpi' stoppati prima del ritornello e ritornello molto saturo (Gain 8, Voice 9)."] },
+  { m: ["under the bridge"], style: "funk", el: { pickup: 4, fx: "Chorus + Reverb", fxl: 2 }, tips: ["Accordi arricchiti con abbellimenti col pollice e il mignolo: pulito, leggero."] },
+  { m: ["sultans of swing"], style: "lead", el: { pickup: 4, ch: 1, v1: 5, fx: "Reverb Large Room", fxl: 2 }, tips: ["Suonata con le dita, senza plettro: è metà del suono.", "Posizione intermedia (centrale + manico), pulito leggermente spinto."] },
+  { m: ["comfortably numb", "shine on you crazy diamond"], style: "lead", el: { gain: 7, voice: 11, fx: "Delay 450 ms", fxl: 4 }, tips: ["Nei solo Gilmour usava un fuzz/overdrive con delay: Gain alto e Delay 450 ms.", "Bending lenti e ampi."] },
+  { m: ["wish you were here"], style: "lead", ac: "finger", tips: ["Intro e riff su acustica: la Takamine è la scelta giusta.", "Accordi G – C – D – Am – Em."] },
+  { m: ["hotel california"], style: "classicrock", ac: "strum", capo: "Capotasto al 7° tasto (forme in La minore) per l'acustica", tips: ["L'originale usa una 12 corde: chorus leggero sulla Cube Baby (15-20%) aiuta a imitarla."] },
+  { m: ["stairway to heaven"], style: "classicrock", ac: "finger", tips: ["Intro arpeggiata: in acustica o in elettrica pulita (canale 1, pickup al manico).", "Il solo finale: pickup al ponte, canale 2, Gain 6."] },
+  { m: ["knockin on heaven", "knocking on heaven"], style: "cantautore", ac: "strum", tips: ["Accordi G – D – Am / G – D – C."] },
+  { m: ["blackbird"], style: "clean60", ac: "finger", tips: ["Fingerpicking con pollice e indice insieme: la Takamine dà il suono giusto."] },
+  { m: ["tears in heaven"], style: "blues", ac: "finger", tips: ["L'originale è su chitarra classica (corde in nylon): sulla Takamine abbassa gli alti e tieni il compressore basso."] },
+  { m: ["zitti e buoni", "i wanna be your slave", "beggin"], style: "hardrock", el: { voice: 12, gain: 6 }, tips: ["Riff molto ritmici e compatti: gain medio-alto ma niente fruscio, palm muting dove serve."] },
+  { m: ["albachiara", "vita spericolata", "siamo solo noi"], style: "classicrock", tips: ["Rock italiano anni '80: crunch medio, accordi aperti, un filo di riverbero."] },
+];
+
+const GENRE_WORDS = [
+  [/\bmetal|thrash|djent|death\b/, "metal"], [/\bpunk\b/, "punk"], [/\bgrunge\b/, "grunge"], [/\bblues\b/, "blues"],
+  [/\bjazz|bossa\b/, "jazz"], [/\bfunk|disco\b/, "funk"], [/\breggae|ska\b/, "reggae"], [/\bcountry|rockabilly\b/, "country"],
+  [/\bsurf\b/, "surf"], [/\bindie|britpop\b/, "indie"], [/\bacoustic|unplugged|acustic/, "cantautore"],
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[’']/g, "'").trim();
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number.isFinite(+v) ? +v : lo));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } },
+};
+
+let mode = store.get("tf.mode", "electric");
+let lastText = "";
+
+function setMode(m) {
+  mode = m;
+  $("m-electric").setAttribute("aria-pressed", String(m === "electric"));
+  $("m-acoustic").setAttribute("aria-pressed", String(m === "acoustic"));
+  store.set("tf.mode", m);
+}
+function status(msg, err = false) { const el = $("status"); el.textContent = msg; el.classList.toggle("err", err); }
+
+// Clean a video/track title into "Artist - Title"
+function cleanTitle(t) {
+  return (t || "")
+    .replace(/\[[^\]]*\]|\([^)]*(official|video|audio|lyric|remaster|live|hd|4k|visualizer)[^)]*\)/gi, "")
+    .replace(/\b(official (music )?video|official audio|lyrics?|hd|4k)\b/gi, "")
+    .replace(/\s{2,}/g, " ").trim();
+}
+
+async function resolveLink(url) {
+  try {
+    const r = await fetch("https://noembed.com/embed?url=" + encodeURIComponent(url));
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j.error || !j.title) return null;
+    let title = cleanTitle(j.title);
+    if (!/[-–—]/.test(title) && j.author_name && !/topic|vevo/i.test(j.author_name)) title = `${j.author_name.replace(/\s*-\s*topic$/i, "")} - ${title}`;
+    return title;
+  } catch { return null; }
+}
+
+// ---------------------------------------------------------------------------
+// Offline engine
+// ---------------------------------------------------------------------------
+function detectStyle(text) {
+  const t = " " + norm(text) + " ";
+  const wordRe = (k) => new RegExp("(^|[^a-z0-9])" + norm(k).replace(/[.*+?^${}()|[\]\\/]/g, "\\$&") + "([^a-z0-9]|$)");
+  const song = SONGS.find((s) => s.m.some((k) => wordRe(k).test(t)));
+  let artist = null, styleKey = null;
+  const keys = Object.keys(ARTISTS).sort((a, b) => b.length - a.length);
+  for (const k of keys) {
+    if (wordRe(k).test(t)) { artist = k; styleKey = ARTISTS[k]; break; }
+  }
+  if (song && song.style) styleKey = song.style;
+  if (!styleKey) for (const [re, s] of GENRE_WORDS) if (re.test(t)) { styleKey = s; break; }
+  return { styleKey, artist, song };
+}
+
+function offlineConfig(text, forcedStyle) {
+  const { styleKey: detected, artist, song } = detectStyle(text);
+  const styleKey = forcedStyle || detected || "pop";
+  const st = STYLES[styleKey];
+  const parts = text.split(/\s+[-–—]\s+/);
+  const cfg = {
+    engine: "offline",
+    title: parts.length > 1 ? parts.slice(1).join(" - ") : text,
+    artist: parts.length > 1 ? parts[0] : (artist ? artist.replace(/\b\w/g, (c) => c.toUpperCase()) : ""),
+    styleLabel: st.label,
+    confidence: forcedStyle ? "stile scelto da te" : detected ? (song ? "brano riconosciuto" : artist ? "artista riconosciuto" : "genere dedotto dal testo") : "non riconosciuto: stile generico",
+    original: "",
+    tuning: "Standard (Mi La Re Sol Si Mi), se non indicato diversamente",
+    capo: song?.capo && mode === "acoustic" ? song.capo : "",
+    tips: [...(song?.tips || []), ...st.tips],
+    why: `Ho associato il brano allo stile “${st.label}” e adattato le impostazioni alla tua attrezzatura.`,
+  };
+  if (mode === "electric") {
+    const el = { ...st.el, ...(song?.el || {}) };
+    cfg.mode = "electric";
+    cfg.guitar = { pickup: el.pickup, volume: el.gVol, tone: el.gTone };
+    cfg.amp = { channel: el.ch, volume1: el.ch === 1 ? el.v1 : 0, gain: el.gain, volume2: el.v2, voice: el.voice, treble: el.treble, bass: el.bass, fx: el.fx, fxLevel: el.fxl };
+    if (el.ch === 1 && cfg.amp.volume1 === 0) cfg.amp.volume1 = 4;
+    cfg.pedal = null;
+  } else {
+    const a = AC[song?.ac || st.ac];
+    cfg.mode = "acoustic";
+    cfg.takamine = { ...a.tak };
+    cfg.pedal = { ...a.pedal, antiFeedback: "ON" };
+    cfg.amp = { channel: 2, volume1: 0, gain: 2, volume2: 4, voice: 16, treble: 5, bass: 4, fx: "Nessuno", fxLevel: 0 };
+    cfg.tips = [...(song?.tips || []), "Effetti (riverbero/delay) dalla Cube Baby, F/X dell'ampli a zero per non sommarli.", "Se fischia: abbassa i bassi sulla Takamine, attiva l'anti-feedback e non puntare la chitarra verso l'ampli.", ...st.tips.filter((t) => /acustic|Takamine/i.test(t))];
+  }
+  if (!detected && !forcedStyle) cfg.tips.unshift("Non ho riconosciuto il brano: scegli lo stile dal menu oppure usa la modalità AI per un risultato specifico.");
+  return cfg;
+}
+
+// ---------------------------------------------------------------------------
+// AI engine (Claude + web search)
+// ---------------------------------------------------------------------------
+const SYSTEM_PROMPT = `Sei un tecnico del suono per chitarristi. L'utente vuole riprodurre il suono di chitarra di un brano nel modo più fedele possibile usando SOLO questa attrezzatura:
+
+CHITARRA ELETTRICA: Hamer Slammer Series (Californian), superstrat anni '90, pickup H-S-S, Floyd Rose con bloccacorde, 1 volume, 1 tono (0-10), selettore a 5 posizioni:
+1 = humbucker al ponte, 2 = humbucker + single centrale, 3 = single centrale, 4 = centrale + manico, 5 = single al manico.
+
+CHITARRA ACUSTICA: Takamine G Series elettroacustica cutaway con preamp (volume 0-10, bassi/medi/alti espressi come scostamento da -5 a +5, 0 = piatto).
+
+PEDALE (solo per acustica): M-VAVE Cube Baby AC: preamp (Clean / Overdrive / Distortion e varianti), gain, EQ bassi/medi/alti, compressore, modulazione (Chorus / Phaser / Tremolo / Off), delay, riverbero (Room / Hall / ecc.), IR di corpo, anti-feedback. Valori in percentuale 0-100.
+
+AMPLIFICATORE: Fender Super Champ XD (15 W valvolare, 1x10").
+- Canale 1: solo Volume 1 (pulito vintage).
+- Canale 2: Gain, Volume 2, VOICE 1-16 (solo canale 2): 1 Tweed Champ pulito, 2 Tweed Bassman pieno, 3 Tweed molto saturo, 4 Blackface pulito brillante, 5 Blackface leggero overdrive, 6 Blackface molto saturo, 7 British pulito jangly, 8 British crunch vintage stack, 9 British high gain, 10-12 Hot Rod (gain crescente), 13 Metal high gain, 14 Metal high gain scavato, 15 Jazz (Jazz King), 16 Acoustic (Acoustasonic, per chitarre acustiche).
+- Comuni: Treble, Bass (0-10), F/X Level (0-10), F/X Select con questi 16 effetti (usa esattamente uno di questi nomi): ${FX.slice(1).join(", ")}. Se non serve effetto usa "Nessuno" con livello 0.
+
+ISTRUZIONI:
+1. Usa la ricerca web per capire chi suona il brano, che chitarra/ampli/effetti usava il chitarrista nella registrazione originale, l'accordatura e l'eventuale capotasto. Non inventare: se non trovi informazioni affidabili dillo.
+2. Traduci quel suono nella migliore approssimazione con l'attrezzatura dell'utente, nel modo indicato (elettrica o acustica). In elettrica il pedale non si usa (pedal = null). In acustica: Takamine -> Cube Baby AC -> Super Champ XD (consiglia canale 2 Voice 16 oppure canale 1, F/X dell'ampli di solito a zero).
+3. Considera che l'ampli si usa in casa: volumi moderati.
+4. Rispondi in italiano. Alla fine scrivi SOLO un oggetto JSON (senza testo dopo) con questa forma:
+{
+ "artist": string, "title": string, "styleLabel": string (genere/stile breve),
+ "original": string (attrezzatura originale e come suona, 1-3 frasi, con le fonti trovate),
+ "tuning": string, "capo": string ("" se nessuno),
+ "guitar": {"pickup": 1-5, "volume": 0-10, "tone": 0-10} oppure null in acustica,
+ "takamine": {"vol": 0-10, "bass": -5..5, "mid": -5..5, "treble": -5..5} oppure null in elettrica,
+ "pedal": {"preamp": string, "gain": 0-100, "bass": 0-100, "mid": 0-100, "treble": 0-100, "comp": 0-100, "mod": string, "delay": string, "reverb": string, "antiFeedback": "ON"|"OFF"} oppure null,
+ "amp": {"channel": 1|2, "volume1": 0-10, "gain": 0-10, "volume2": 0-10, "voice": 1-16, "treble": 0-10, "bass": 0-10, "fx": string, "fxLevel": 0-10},
+ "tips": [string, ...] (3-6 consigli pratici: tecnica, cambi di canale tra strofa/ritornello, limiti dell'attrezzatura),
+ "why": string (perché queste scelte, 2-4 frasi),
+ "confidence": "alta" | "media" | "bassa"
+}`;
+
+async function aiConfig(query, resolvedTitle, apiKey) {
+  status("Carico il client di Claude…");
+  const { default: Anthropic } = await import("https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.135.0/+esm");
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  const userText =
+    `Brano: ${query}` + (resolvedTitle && resolvedTitle !== query ? `\nTitolo ricavato dal link: ${resolvedTitle}` : "") +
+    `\nModalità: ${mode === "electric" ? "CHITARRA ELETTRICA (Hamer)" : "CHITARRA ACUSTICA (Takamine + Cube Baby AC)"}`;
+
+  const userMsg = { role: "user", content: userText };
+  let assistantContent = [];
+  let final;
+  try {
+    for (let i = 0; i < 5; i++) {
+      const messages = assistantContent.length ? [userMsg, { role: "assistant", content: assistantContent }] : [userMsg];
+      const stream = client.beta.messages.stream({
+        model: "claude-opus-5-5",
+        max_tokens: 16000,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: { effort: "medium" },
+        system: SYSTEM_PROMPT,
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
+        messages,
+      });
+      stream.on("streamEvent", (ev) => {
+        if (ev.type === "content_block_start" && ev.content_block?.type === "server_tool_use") status("🔎 Cerco sul web l'attrezzatura originale del brano…");
+        if (ev.type === "content_block_start" && ev.content_block?.type === "text") status("✍️ Preparo la configurazione…");
+      });
+      final = await stream.finalMessage();
+      assistantContent = [...assistantContent, ...final.content];
+      if (final.stop_reason === "pause_turn") continue;
+      break;
+    }
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) throw new Error("Chiave API non valida.");
+    if (e instanceof Anthropic.PermissionDeniedError) throw new Error("La chiave non ha accesso a questo modello o funzione.");
+    if (e instanceof Anthropic.RateLimitError) throw new Error("Troppe richieste: riprova tra poco.");
+    if (e instanceof Anthropic.BadRequestError) throw new Error("Richiesta rifiutata dall'API: " + e.message);
+    if (e instanceof Anthropic.APIConnectionError) throw new Error("Connessione all'API non riuscita.");
+    if (e instanceof Anthropic.APIError) throw new Error(`Errore API ${e.status}: ${e.message}`);
+    throw e;
+  }
+  if (final.stop_reason === "refusal") throw new Error("Il modello non ha risposto a questa richiesta.");
+  const text = assistantContent.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const start = text.indexOf("{"), end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("Risposta senza configurazione leggibile.");
+  let j;
+  try { j = JSON.parse(text.slice(text.lastIndexOf("\n{", end) >= 0 ? text.lastIndexOf("\n{", end) + 1 : start, end + 1)); }
+  catch { j = JSON.parse(text.slice(start, end + 1)); }
+  return sanitizeAI(j);
+}
+
+function sanitizeAI(j) {
+  const a = j.amp || {};
+  const cfg = {
+    engine: "ai", mode,
+    artist: j.artist || "", title: j.title || "", styleLabel: j.styleLabel || "",
+    original: j.original || "", tuning: j.tuning || "Standard", capo: j.capo || "",
+    tips: Array.isArray(j.tips) ? j.tips.map(String) : [], why: j.why || "", confidence: "affidabilità " + (j.confidence || "media"),
+    amp: {
+      channel: a.channel === 1 ? 1 : 2, volume1: clamp(a.volume1, 0, 10), gain: clamp(a.gain, 0, 10), volume2: clamp(a.volume2, 0, 10),
+      voice: clamp(Math.round(a.voice || 4), 1, 16), treble: clamp(a.treble, 0, 10), bass: clamp(a.bass, 0, 10),
+      fx: FX.includes(a.fx) ? a.fx : (a.fx || "Nessuno"), fxLevel: clamp(a.fxLevel, 0, 10),
+    },
+  };
+  if (mode === "electric") {
+    const g = j.guitar || {};
+    cfg.guitar = { pickup: clamp(Math.round(g.pickup || 1), 1, 5), volume: clamp(g.volume ?? 10, 0, 10), tone: clamp(g.tone ?? 8, 0, 10) };
+    cfg.pedal = null;
+  } else {
+    const t = j.takamine || {};
+    cfg.takamine = { vol: clamp(t.vol ?? 7, 0, 10), bass: clamp(t.bass, -5, 5), mid: clamp(t.mid, -5, 5), treble: clamp(t.treble, -5, 5) };
+    const p = j.pedal || {};
+    cfg.pedal = { preamp: p.preamp || "Clean", gain: clamp(p.gain, 0, 100), bass: clamp(p.bass ?? 50, 0, 100), mid: clamp(p.mid ?? 50, 0, 100), treble: clamp(p.treble ?? 50, 0, 100), comp: clamp(p.comp, 0, 100), mod: p.mod || "Off", delay: p.delay || "Off", reverb: p.reverb || "Off", antiFeedback: p.antiFeedback || "ON" };
+  }
+  return cfg;
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+function knobSVG(value, min, max) {
+  const frac = (clamp(value, min, max) - min) / (max - min || 1);
+  const ang = -135 + frac * 270;
+  const ticks = Array.from({ length: 11 }, (_, i) => {
+    const a = (-135 + i * 27) * Math.PI / 180;
+    const x1 = 29 + Math.sin(a) * 25, y1 = 29 - Math.cos(a) * 25, x2 = 29 + Math.sin(a) * 28, y2 = 29 - Math.cos(a) * 28;
+    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="currentColor" stroke-opacity=".55" stroke-width="1.2"/>`;
+  }).join("");
+  return `<svg viewBox="0 0 58 58" aria-hidden="true">${ticks}
+    <circle cx="29" cy="29" r="20" fill="var(--knob)" stroke="#000" stroke-opacity=".4"/>
+    <circle cx="29" cy="29" r="13" fill="#c9c6bf"/>
+    <g transform="rotate(${ang.toFixed(1)} 29 29)"><rect x="27.6" y="9" width="2.8" height="13" rx="1.4" fill="#111"/></g></svg>`;
+}
+function knob(label, value, { min = 0, max = 10, off = false, sub = "", display } = {}) {
+  return `<div class="knob${off ? " off" : ""}">${knobSVG(off ? min : value, min, max)}
+    <div class="k-val">${off ? "—" : esc(display ?? value)}</div><div class="k-label">${esc(label)}</div>${sub ? `<div class="k-sub">${esc(sub)}</div>` : ""}</div>`;
+}
+const sign = (v) => (v > 0 ? "+" + v : String(v));
+
+function render(cfg) {
+  const a = cfg.amp;
+  const ch2 = a.channel === 2;
+  const chain = cfg.mode === "electric"
+    ? ["Hamer Slammer", "Super Champ XD"]
+    : ["Takamine G", "Cube Baby AC", "Super Champ XD"];
+
+  const ampHTML = `
+    <div class="amp">
+      <div class="amp-title">Super Champ XD</div>
+      <div class="knobs">
+        ${knob("Volume 1", a.volume1, { off: ch2 })}
+        <div class="sep"></div>
+        ${knob("Gain", a.gain, { off: !ch2 })}
+        ${knob("Volume 2", a.volume2, { off: !ch2 })}
+        ${knob("Voice", a.voice, { min: 1, max: 16, off: !ch2, sub: ch2 ? VOICES[a.voice] : "" })}
+        <div class="sep"></div>
+        ${knob("Treble", a.treble)}
+        ${knob("Bass", a.bass)}
+        ${knob("F/X Level", a.fxLevel)}
+        ${knob("F/X Select", Math.max(0, FX.indexOf(a.fx)), { max: 16, display: a.fx === "Nessuno" ? "off" : "▸", sub: a.fx })}
+      </div>
+      <div class="chsel">CH SELECT: <b>Canale ${a.channel}</b> ${ch2 ? "(led acceso)" : "(led spento)"} · i knob in grigio non incidono</div>
+    </div>`;
+
+  let guitarHTML;
+  if (cfg.mode === "electric") {
+    const g = cfg.guitar;
+    guitarHTML = `<div class="sub">
+      <h3>🎸 Hamer Slammer</h3>
+      <div class="hint">Selettore pickup (1 = verso il ponte)</div>
+      <div class="switch5">${[1, 2, 3, 4, 5].map((p) => `<div class="${p === g.pickup ? "on" : ""}">${p}</div>`).join("")}</div>
+      <table class="params">
+        <tr><td>Pickup</td><td><b>${g.pickup} – ${esc(PICKUPS[g.pickup])}</b></td></tr>
+        <tr><td>Volume chitarra</td><td><b>${g.volume}</b> / 10</td></tr>
+        <tr><td>Tono chitarra</td><td><b>${g.tone}</b> / 10</td></tr>
+        <tr><td>Accordatura</td><td>${esc(cfg.tuning)}</td></tr>
+      </table></div>`;
+  } else {
+    const t = cfg.takamine;
+    guitarHTML = `<div class="sub">
+      <h3>🪵 Takamine G Series – preamp</h3>
+      <table class="params">
+        <tr><td>Volume</td><td><b>${t.vol}</b> / 10</td></tr>
+        <tr><td>Bassi</td><td><b>${sign(t.bass)}</b> (0 = centro)</td></tr>
+        <tr><td>Medi</td><td><b>${sign(t.mid)}</b></td></tr>
+        <tr><td>Alti</td><td><b>${sign(t.treble)}</b></td></tr>
+        <tr><td>Accordatura</td><td>${esc(cfg.tuning)}</td></tr>
+        ${cfg.capo ? `<tr><td>Capotasto</td><td><b>${esc(cfg.capo)}</b></td></tr>` : ""}
+      </table></div>`;
+  }
+
+  let pedalHTML = "";
+  if (cfg.pedal) {
+    const p = cfg.pedal;
+    pedalHTML = `<div class="sub">
+      <h3>🟨 Cube Baby AC</h3>
+      <table class="params">
+        <tr><td>Preamp</td><td><b>${esc(p.preamp)}</b> · gain ${p.gain}%</td></tr>
+        <tr><td>EQ</td><td>Bassi ${p.bass}% · Medi ${p.mid}% · Alti ${p.treble}%</td></tr>
+        <tr><td>Compressore</td><td>${p.comp}%</td></tr>
+        <tr><td>Modulazione</td><td>${esc(p.mod)}</td></tr>
+        <tr><td>Delay</td><td>${esc(p.delay)}</td></tr>
+        <tr><td>Riverbero</td><td>${esc(p.reverb)}</td></tr>
+        <tr><td>Anti-feedback</td><td><b>${esc(p.antiFeedback)}</b></td></tr>
+      </table>
+      <div class="hint">50% = posizione centrale/piatta dell'EQ.</div></div>`;
+  } else {
+    pedalHTML = `<div class="sub"><h3>🟨 Cube Baby AC</h3><p class="hint" style="margin:0">Non serve in elettrica: collega la Hamer direttamente all'INPUT dell'ampli.</p></div>`;
+  }
+
+  $("result").innerHTML = `
+    <div class="card">
+      <div class="result-head">
+        <div>
+          <span class="badge ${cfg.engine === "ai" ? "ai" : ""}">${cfg.engine === "ai" ? "AI + web" : "Offline"}</span>
+          <span class="badge">${cfg.mode === "electric" ? "Elettrica" : "Acustica"}</span>
+          <span class="badge">${esc(cfg.confidence)}</span>
+          <h2>${esc(cfg.title || "Brano")}</h2>
+          <div class="meta">${esc(cfg.artist)}${cfg.styleLabel ? " · " + esc(cfg.styleLabel) : ""}</div>
+        </div>
+      </div>
+      <div class="chain">${chain.map((n, i) => `${i ? '<span class="arrow">→</span>' : ""}<span class="node">${esc(n)}</span>`).join("")}</div>
+      ${cfg.original ? `<p class="meta" style="margin:8px 0 0"><b>Suono originale:</b> ${esc(cfg.original)}</p>` : ""}
+    </div>
+    <div class="card">${ampHTML}</div>
+    <div class="card"><div class="grid2">${guitarHTML}${pedalHTML}</div></div>
+    <div class="card">
+      <h2>Consigli</h2>
+      <ul class="tips">${cfg.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
+      ${cfg.why ? `<div class="why" style="margin-top:12px">${esc(cfg.why)}</div>` : ""}
+      <p class="hint">Parti da queste impostazioni e ritocca a orecchio: stanza, corde e volume cambiano molto il risultato.</p>
+    </div>`;
+  $("result").classList.remove("hidden");
+  lastText = toText(cfg);
+  $("copy").disabled = false;
+}
+
+function toText(cfg) {
+  const a = cfg.amp, L = [];
+  L.push(`${cfg.artist ? cfg.artist + " – " : ""}${cfg.title} (${cfg.mode === "electric" ? "elettrica" : "acustica"})`);
+  if (cfg.original) L.push(`Originale: ${cfg.original}`);
+  L.push(`Accordatura: ${cfg.tuning}${cfg.capo ? " · " + cfg.capo : ""}`);
+  if (cfg.mode === "electric") L.push(`Hamer: pickup ${cfg.guitar.pickup} (${PICKUPS[cfg.guitar.pickup]}), volume ${cfg.guitar.volume}, tono ${cfg.guitar.tone}`);
+  else {
+    const t = cfg.takamine, p = cfg.pedal;
+    L.push(`Takamine: vol ${t.vol}, bassi ${sign(t.bass)}, medi ${sign(t.mid)}, alti ${sign(t.treble)}`);
+    L.push(`Cube Baby AC: ${p.preamp} gain ${p.gain}%, EQ ${p.bass}/${p.mid}/${p.treble}, comp ${p.comp}%, mod ${p.mod}, delay ${p.delay}, reverb ${p.reverb}, anti-feedback ${p.antiFeedback}`);
+  }
+  L.push(a.channel === 1
+    ? `Super Champ XD: canale 1, Volume 1 ${a.volume1}, Treble ${a.treble}, Bass ${a.bass}, F/X ${a.fx} livello ${a.fxLevel}`
+    : `Super Champ XD: canale 2, Gain ${a.gain}, Volume 2 ${a.volume2}, Voice ${a.voice} (${VOICES[a.voice]}), Treble ${a.treble}, Bass ${a.bass}, F/X ${a.fx} livello ${a.fxLevel}`);
+  cfg.tips.forEach((t) => L.push("• " + t));
+  return L.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// History
+// ---------------------------------------------------------------------------
+function addHistory(q) {
+  const h = store.get("tf.history", []).filter((x) => x.q !== q || x.mode !== mode);
+  h.unshift({ q, mode });
+  store.set("tf.history", h.slice(0, 8));
+  renderHistory();
+}
+function renderHistory() {
+  const h = store.get("tf.history", []);
+  $("histwrap").classList.toggle("hidden", !h.length);
+  $("history").innerHTML = h.map((x, i) => `<button type="button" data-i="${i}">${x.mode === "electric" ? "⚡" : "🪵"} ${esc(x.q.length > 40 ? x.q.slice(0, 40) + "…" : x.q)}</button>`).join("");
+  $("history").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    const x = h[+b.dataset.i]; $("q").value = x.q; setMode(x.mode); run();
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+async function run() {
+  const q = $("q").value.trim();
+  if (!q) { status("Scrivi il nome della canzone o incolla un link.", true); return; }
+  const btn = $("go"); btn.disabled = true;
+  try {
+    let text = q;
+    if (/^https?:\/\//i.test(q)) {
+      status("Leggo il titolo dal link…");
+      const t = await resolveLink(q);
+      if (t) text = t;
+      else if ($("engine").value === "offline") { status("Non riesco a leggere il titolo dal link: scrivi 'Band - Titolo'.", true); return; }
+    }
+    const key = $("apikey").value.trim();
+    if ($("engine").value === "ai" && key) {
+      store.set("tf.key", key);
+      try {
+        const cfg = await aiConfig(q, text, key);
+        render(cfg); status("Fatto ✔"); addHistory(q); return;
+      } catch (e) {
+        console.error(e);
+        status(`AI non disponibile (${e.message}) – uso il motore offline.`, true);
+        if (/^https?:/i.test(text)) return;
+      }
+    }
+    const cfg = offlineConfig(text, $("style").value);
+    render(cfg);
+    if ($("engine").value === "ai" && !key) status("Nessuna chiave API: risultato dal motore offline. Aggiungi la chiave per una ricerca specifica del brano.");
+    else if (!$("status").classList.contains("err")) status("Fatto ✔");
+    addHistory(q);
+  } finally { btn.disabled = false; }
+}
+
+// Init
+for (const [k, s] of Object.entries(STYLES)) {
+  const o = document.createElement("option"); o.value = k; o.textContent = s.label; $("style").appendChild(o);
+}
+setMode(mode);
+$("apikey").value = store.get("tf.key", "");
+$("engine").value = store.get("tf.engine", $("apikey").value ? "ai" : "offline");
+$("engine").addEventListener("change", () => store.set("tf.engine", $("engine").value));
+$("m-electric").addEventListener("click", () => setMode("electric"));
+$("m-acoustic").addEventListener("click", () => setMode("acoustic"));
+$("go").addEventListener("click", run);
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+$("copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(lastText); status("Configurazione copiata 📋"); }
+  catch { status("Copia non riuscita: seleziona il testo a mano.", true); }
+});
+renderHistory();
+</script>
+</body>
+</html>
